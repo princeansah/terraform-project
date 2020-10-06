@@ -8,3 +8,30 @@ resource "aws_s3_bucket" "prod_tf_course" {
 }
 
 resource "aws_default_vpc" "default" {}
+
+resource "aws_security_group" "prod_web" {
+    name        = "prod_web"
+    description = "Allow standard http and https ports inbound and everything outbound"
+
+    ingress {              # this is 
+        from_port   = 80   # this lets you define an inbound port range
+        to_port     = 80   # however because we have same port number and not a range we maintain same numbers
+        protocol    = "tcp"
+        cidr_blocks = ["98.156.133.14/32"]
+    }
+    ingress {
+        from_port    = 443
+        to_port      = 443
+        protocol     = "tcp"
+        cidr_blocks  = ["98.156.133.14/32"]
+    }
+    egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"           # allowing traffic from anywhere
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+    tags = {
+        "Terraform"   : "true"   # this provides a handy way to tell which resources are managed by terraform when you log in to 
+    }                            # terraform UI
+}
