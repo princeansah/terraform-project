@@ -52,41 +52,40 @@ resource "aws_security_group" "prod_web" {
     tags = {
         "Terraform"   : "true"   # this provides a handy way to tell which resources are managed by terraform when you log in to 
     }                            # aws UI
+}  
+
+# auto scaling group
+resource "aws_launch_template" "prod_web" {     # this is just the configuration that your ASG should use to lunch new instances
+    name_prefix   = "prod-web"
+    image_id      = "ami-019c091d13a1fa156"
+    instance_type = "t2.nano"
 }
 
-# instances
-resource "aws_instance" "prod_web" {
-    count = 2
+resource "aws_autoscaling_group" "prod_web" {
+  vpc_zone_identifier = [aws_default_subnet.default_az1.id, aws_default_subnet.default_az2.id]  #available and used subnets
+  desired_capacity    = 2             
+  max_size            = 2
+  min_size            = 1
 
-    ami                                = "ami-019c091d13a1fa156"
-    instance_type                      = "t2.nano"
-
-    vpc_security_group_ids             = [
-        aws_security_group.prod_web.id   # this reference the security group configured above in the script.
-    ]
-
-    tags                               = {
-        "Terraform" : "true"
-    }
+  launch_template {
+    id      = aws_launch_template.prod_web.id
+    version = "$Latest"
+  }
+  tag {
+      key                  = "Terraform"
+      value                = "True"
+      propagate_at_launch  = true  # this means it will assign that key "Terraform on launch"
+  }
 }
 
-# elastic IP associations
-resource "aws_eip_association" "prod_web" {   # here i decoupled the eip association so that it can be reassociated with another instance if need be
-    instance_id   = aws_instance.prod_web.0.id  # the .0 means the IP should be attached to the first instance of the 2 instances
-    allocation_id = aws_eip.prod_web.id         # using a .* will mean to refer to all instances.
-}
-
-# elastic IPs
-resource "aws_eip" "prod_web" {
-    tags         = {
-        "Terraform" : "true"
-    }
+resource "aws_autoscaling_attachment" "prod_web" {
+  autoscaling_group_name = aws_autoscaling_group.prod_web.id
+  elb                    = aws_elb.prod_web.id
 }
 
 # load balancer
 resource "aws_elb" "prod_web" {
-    name = "prod-web"
-    instances          = aws_instance.prod_web.*.id
+    name               = "prod-web"
     subnets            = [aws_default_subnet.default_az1.id, aws_default_subnet.default_az2.id] # the subnets are provided in array because i have multiple subnets
     security_groups    = [aws_security_group.prod_web.id]  # its provided in array because the terraform documentation on the website expects multiple SG
 
@@ -99,4 +98,4 @@ resource "aws_elb" "prod_web" {
     tags                  = {
         "Terraform" : "true"
     }    
-}   
+} 
