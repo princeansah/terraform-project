@@ -2,13 +2,31 @@
 # run "terraform init, then terraform validate to see if the configuration files are correct"
 # webgraphviz.com
 
+# s3 bucket
 resource "aws_s3_bucket" "prod_tf_course" {
     bucket = "terraformproject23"  # to save your plan in a separate file, "terraform plan -'destroy' -out=name_of_file" to create an out file.
     acl    = "private"
 }
 
+# VPC
 resource "aws_default_vpc" "default" {}
 
+# Subnet creation
+resource "aws_default_subnet" "default_az1" {      # I set up my resources in multi AZ to be able to do load balancing
+    availability_zone = "us-west-2a"
+    tags              = {
+        "Terraform" : "true"
+    }
+}
+
+resource "aws_default_subnet" "default_az2" {
+    availability_zone = "us-west-2b"
+    tags              = {
+        "Terraform" : "true"
+    }
+}
+
+# security groups
 resource "aws_security_group" "prod_web" {
     name        = "prod_web"
     description = "Allow standard http and https ports inbound and everything outbound"
@@ -36,28 +54,49 @@ resource "aws_security_group" "prod_web" {
     }                            # aws UI
 }
 
+# instances
 resource "aws_instance" "prod_web" {
     count = 2
 
-    ami = "ami-019c091d13a1fa156"
-    instance_type  = "t2.nano"
+    ami                                = "ami-019c091d13a1fa156"
+    instance_type                      = "t2.nano"
 
-    vpc_security_group_ids = [
+    vpc_security_group_ids             = [
         aws_security_group.prod_web.id   # this reference the security group configured above in the script.
     ]
 
-    tags = {
+    tags                               = {
         "Terraform" : "true"
     }
 }
 
+# elastic IP associations
 resource "aws_eip_association" "prod_web" {   # here i decoupled the eip association so that it can be reassociated with another instance if need be
     instance_id   = aws_instance.prod_web.0.id  # the .0 means the IP should be attached to the first instance of the 2 instances
     allocation_id = aws_eip.prod_web.id         # using a .* will mean to refer to all instances.
 }
 
+# elastic IPs
 resource "aws_eip" "prod_web" {
-    tags = {
+    tags         = {
         "Terraform" : "true"
     }
 }
+
+# load balancer
+resource "aws_elb" "prod_web" {
+    name = "prod-web"
+    instances          = aws_instance.prod_web.*.id
+    subnets            = [aws_default_subnet.default_az1.id, aws_default_subnet.default_az2.id] # the subnets are provided in array because i have multiple subnets
+    security_groups    = [aws_security_group.prod_web.id]  # its provided in array because the terraform documentation on the website expects multiple SG
+
+    listener {
+        instance_port     = 80
+        instance_protocol = "http"
+        lb_port           = 80
+        lb_protocol       = "http"
+    }
+    tags                  = {
+        "Terraform" : "true"
+    }    
+}   
