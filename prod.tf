@@ -33,10 +33,12 @@ resource "aws_security_group" "prod_web" {
     }
     tags = {
         "Terraform"   : "true"   # this provides a handy way to tell which resources are managed by terraform when you log in to 
-    }                            # terraform UI
+    }                            # aws UI
 }
 
 resource "aws_instance" "prod_web" {
+    count = 2
+
     ami = "ami-019c091d13a1fa156"
     instance_type  = "t2.nano"
 
@@ -49,8 +51,12 @@ resource "aws_instance" "prod_web" {
     }
 }
 
+resource "aws_eip_association" "prod_web" {   # here i decoupled the eip association so that it can be reassociated with another instance if need be
+    instance_id   = aws_instance.prod_web.0.id  # the .0 means the IP should be attached to the first instance of the 2 instances
+    allocation_id = aws_eip.prod_web.id         # using a .* will mean to refer to all instances.
+}
+
 resource "aws_eip" "prod_web" {
-    instance = aws_instance.prod_web.id
     tags = {
         "Terraform" : "true"
     }
