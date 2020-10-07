@@ -35,3 +35,23 @@ resource "aws_security_group" "prod_web" {
         "Terraform"   : "true"   # this provides a handy way to tell which resources are managed by terraform when you log in to 
     }                            # terraform UI
 }
+
+resource "aws_instance" "prod_web" {
+    ami = "ami-019c091d13a1fa156"
+    instance_type  = "t2.nano"
+
+    vpc_security_group_ids = [
+        aws_security_group.prod_web.id   # this reference the security group configured above in the script.
+    ]
+
+    tags = {
+        "Terraform" : "true"
+    }
+}
+
+resource "aws_eip" "prod_web" {
+    instance = aws_instance.prod_web.id
+    tags = {
+        "Terraform" : "true"
+    }
+}
